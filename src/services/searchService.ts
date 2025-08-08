@@ -7,8 +7,16 @@ export interface SearchResult {
   state?: string;
 }
 
-// Mock Portuguese beach locations for search
-const portugueseBeaches: SearchResult[] = [
+// Iberia search list (Portugal + Spain). Sampled popular beaches; can be expanded.
+const iberiaBeaches: SearchResult[] = [
+  // Portugal (Lisboa/Setúbal)
+  { name: 'Costa da Caparica', displayName: 'Costa da Caparica', latitude: 38.6413, longitude: -9.2386, country: 'Portugal', state: 'Setúbal' },
+  { name: 'Praia do Guincho', displayName: 'Praia do Guincho', latitude: 38.7329, longitude: -9.4730, country: 'Portugal', state: 'Lisboa' },
+  { name: 'Praia de Carcavelos', displayName: 'Praia de Carcavelos', latitude: 38.6795, longitude: -9.3326, country: 'Portugal', state: 'Lisboa' },
+  { name: 'Praia de Cascais', displayName: 'Praia de Cascais', latitude: 38.7000, longitude: -9.4167, country: 'Portugal', state: 'Lisboa' },
+  { name: 'Praia de Estoril', displayName: 'Praia de Estoril', latitude: 38.7167, longitude: -9.4000, country: 'Portugal', state: 'Lisboa' },
+  { name: 'Praia de Ericeira', displayName: 'Praia de Ericeira', latitude: 38.9667, longitude: -9.4167, country: 'Portugal', state: 'Lisboa' },
+  // Portugal (Centro/Norte/Algarve)
   { name: 'Praia da Marinha', displayName: 'Praia da Marinha', latitude: 37.0869, longitude: -8.4167, country: 'Portugal', state: 'Algarve' },
   { name: 'Praia de Benagil', displayName: 'Praia de Benagil', latitude: 37.0897, longitude: -8.4247, country: 'Portugal', state: 'Algarve' },
   { name: 'Praia dos Coelhos', displayName: 'Praia dos Coelhos', latitude: 37.0869, longitude: -8.4167, country: 'Portugal', state: 'Algarve' },
@@ -50,6 +58,13 @@ const portugueseBeaches: SearchResult[] = [
   { name: 'Praia de Matosinhos', displayName: 'Praia de Matosinhos', latitude: 41.1833, longitude: -8.7000, country: 'Portugal', state: 'Porto' },
   { name: 'Praia de Póvoa de Varzim', displayName: 'Praia de Póvoa de Varzim', latitude: 41.3833, longitude: -8.7667, country: 'Portugal', state: 'Porto' },
   { name: 'Praia de Viana do Castelo', displayName: 'Praia de Viana do Castelo', latitude: 41.7000, longitude: -8.8333, country: 'Portugal', state: 'Viana do Castelo' }
+  ,
+  // Spain (Catalonia/Basque/Andalusia)
+  { name: 'Barceloneta Beach', displayName: 'Barceloneta Beach', latitude: 41.3790, longitude: 2.1893, country: 'Spain', state: 'Catalonia' },
+  { name: 'Sitges', displayName: 'Sitges', latitude: 41.2370, longitude: 1.8039, country: 'Spain', state: 'Catalonia' },
+  { name: 'La Concha', displayName: 'La Concha (San Sebastián)', latitude: 43.3183, longitude: -1.9869, country: 'Spain', state: 'Basque Country' },
+  { name: 'La Caleta', displayName: 'La Caleta (Cádiz)', latitude: 36.5363, longitude: -6.2994, country: 'Spain', state: 'Andalusia' },
+  { name: 'Tarifa', displayName: 'Tarifa', latitude: 36.0130, longitude: -5.6060, country: 'Spain', state: 'Andalusia' }
 ];
 
 export const searchService = {
@@ -64,7 +79,7 @@ export const searchService = {
     }
     
     // Filter beaches based on search query
-    const results = portugueseBeaches.filter(beach => 
+    const results = iberiaBeaches.filter(beach => 
       beach.name.toLowerCase().includes(searchTerm) ||
       beach.displayName.toLowerCase().includes(searchTerm) ||
       beach.state?.toLowerCase().includes(searchTerm) ||

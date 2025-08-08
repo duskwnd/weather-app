@@ -1,176 +1,234 @@
 import { BeachLocation, BeachWeatherData, WeatherData, WaterData, TideData, ForecastDay } from '../types/weather';
 
-// Mock beach locations
-export const mockBeachLocations: BeachLocation[] = [
+// Iberia-focused default beaches (Portugal + Spain)
+const defaultBeachLocations: BeachLocation[] = [
   {
-    id: '1',
-    name: 'Miami Beach',
-    latitude: 25.7907,
-    longitude: -80.1300,
-    country: 'USA',
-    state: 'Florida',
-    isFavorite: true,
-    webcamUrl: 'https://www.earthcam.com/usa/florida/miamibeach/'
-  },
-  {
-    id: '2',
-    name: 'Malibu Beach',
-    latitude: 34.0259,
-    longitude: -118.7798,
-    country: 'USA',
-    state: 'California',
-    isFavorite: false,
-    webcamUrl: 'https://www.earthcam.com/usa/california/malibu/'
-  },
-  {
-    id: '3',
-    name: 'Bondi Beach',
-    latitude: -33.8915,
-    longitude: 151.2767,
-    country: 'Australia',
-    state: 'New South Wales',
+    id: 'pt-caparica',
+    name: 'Costa da Caparica',
+    latitude: 38.6413,
+    longitude: -9.2386,
+    country: 'Portugal',
+    state: 'Setúbal',
     isFavorite: true
   },
   {
-    id: '4',
-    name: 'Copacabana Beach',
-    latitude: -22.9716,
-    longitude: -43.1826,
-    country: 'Brazil',
-    state: 'Rio de Janeiro',
+    id: 'pt-guincho',
+    name: 'Praia do Guincho',
+    latitude: 38.7329,
+    longitude: -9.4730,
+    country: 'Portugal',
+    state: 'Lisboa',
     isFavorite: false
   }
 ];
 
-// Generate mock weather data
-const generateMockWeather = (): WeatherData => ({
-  temperature: Math.floor(Math.random() * 30) + 15,
-  feelsLike: Math.floor(Math.random() * 30) + 15,
-  humidity: Math.floor(Math.random() * 40) + 40,
-  windSpeed: Math.floor(Math.random() * 20) + 5,
-  windDirection: Math.floor(Math.random() * 360),
-  description: ['Sunny', 'Partly Cloudy', 'Clear', 'Breezy', 'Overcast'][Math.floor(Math.random() * 5)],
-  icon: 'sunny'
-});
-
-// Generate mock water data
-const generateMockWater = (): WaterData => ({
-  temperature: Math.floor(Math.random() * 15) + 20,
-  waveHeight: Math.random() * 3 + 0.5,
-  waveDirection: Math.floor(Math.random() * 360)
-});
-
-// Generate mock tide data
-const generateMockTide = (): TideData => {
+// Fallback tide generator (until a tide provider is added)
+const generateFallbackTide = (): TideData => {
   const tideTypes: ('high' | 'low' | 'rising' | 'falling')[] = ['high', 'low', 'rising', 'falling'];
   const currentType = tideTypes[Math.floor(Math.random() * tideTypes.length)];
-  
   return {
     current: {
-      height: Math.random() * 2 + 0.5,
+      height: Number((Math.random() * 2 + 0.3).toFixed(2)),
       type: currentType,
       time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     },
     upcoming: [
-      {
-        time: '14:30',
-        height: 1.8,
-        type: 'high'
-      },
-      {
-        time: '20:45',
-        height: 0.3,
-        type: 'low'
-      },
-      {
-        time: '02:15',
-        height: 1.9,
-        type: 'high'
-      }
+      { time: '06:00', height: 0.4, type: 'low' },
+      { time: '12:30', height: 1.8, type: 'high' },
+      { time: '19:00', height: 0.5, type: 'low' }
     ]
   };
 };
 
-// Generate 7-day forecast
-const generateForecast = (): ForecastDay[] => {
-  const forecast: ForecastDay[] = [];
-  const today = new Date();
-  
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + i);
-    
-    const highTemp = Math.floor(Math.random() * 15) + 20;
-    const lowTemp = highTemp - Math.floor(Math.random() * 10) - 5;
-    
-    forecast.push({
-      date: date.toISOString().split('T')[0],
-      weather: generateMockWeather(),
-      water: generateMockWater(),
-      tide: generateMockTide(),
-      highTemp,
-      lowTemp
+async function fetchOpenMeteoAir(latitude: number, longitude: number) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch air weather');
+  return res.json();
+}
+
+async function fetchOpenMeteoMarine(latitude: number, longitude: number) {
+  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${latitude}&longitude=${longitude}&current=wave_height,wave_direction,sea_surface_temperature&hourly=sea_surface_temperature,wave_height,wave_direction&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch marine weather');
+  return res.json();
+}
+
+async function fetchOpenMeteoTide(latitude: number, longitude: number) {
+  const url = `https://marine-api.open-meteo.com/v1/marine?latitude=${latitude}&longitude=${longitude}&hourly=tide_height&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch tide');
+  return res.json();
+}
+
+function mapAirToWeatherData(air: any): WeatherData {
+  return {
+    temperature: Number(air.current?.temperature_2m ?? 0),
+    feelsLike: Number(air.current?.temperature_2m ?? 0),
+    humidity: Number(air.current?.relative_humidity_2m ?? 0),
+    windSpeed: Number(air.current?.wind_speed_10m ?? 0),
+    windDirection: Number(air.current?.wind_direction_10m ?? 0),
+    description: '—',
+    icon: 'clear'
+  };
+}
+
+function mapMarineToWaterData(marine: any): WaterData {
+  const temp = marine.current?.sea_surface_temperature ?? marine.hourly?.sea_surface_temperature?.[0] ?? null;
+  const waveHeight = marine.current?.wave_height ?? marine.hourly?.wave_height?.[0] ?? null;
+  const waveDirection = marine.current?.wave_direction ?? marine.hourly?.wave_direction?.[0] ?? null;
+  return {
+    temperature: temp !== null ? Number(temp) : NaN,
+    waveHeight: waveHeight !== null ? Number(waveHeight) : undefined,
+    waveDirection: waveDirection !== null ? Number(waveDirection) : undefined
+  };
+}
+
+function mapDailyToForecast(air: any, marine: any): ForecastDay[] {
+  const days: ForecastDay[] = [];
+  const dates: string[] = air.daily?.time || [];
+  for (let i = 0; i < Math.min(7, dates.length); i++) {
+    const date = dates[i];
+    const high = Number(air.daily?.temperature_2m_max?.[i] ?? 0);
+    const low = Number(air.daily?.temperature_2m_min?.[i] ?? 0);
+    const waterTemp = marine.hourly?.sea_surface_temperature?.[i] ?? marine.current?.sea_surface_temperature ?? null;
+    const waveHeight = marine.hourly?.wave_height?.[i] ?? marine.current?.wave_height ?? null;
+    const waveDirection = marine.hourly?.wave_direction?.[i] ?? marine.current?.wave_direction ?? null;
+
+    const weather: WeatherData = {
+      temperature: high,
+      feelsLike: high,
+      humidity: Number(air.current?.relative_humidity_2m ?? 0),
+      windSpeed: Number(air.current?.wind_speed_10m ?? 0),
+      windDirection: Number(air.current?.wind_direction_10m ?? 0),
+      description: '—',
+      icon: 'clear'
+    };
+    const water: WaterData = {
+      temperature: waterTemp !== null ? Number(waterTemp) : NaN,
+      waveHeight: waveHeight !== null ? Number(waveHeight) : undefined,
+      waveDirection: waveDirection !== null ? Number(waveDirection) : undefined
+    };
+
+    days.push({
+      date,
+      weather,
+      water,
+      tide: generateFallbackTide(),
+      highTemp: high,
+      lowTemp: low
     });
   }
-  
-  return forecast;
-};
+  return days;
+}
 
-// Mock API functions
+// In-memory list that can be mutated by add/delete
+const beachLocations: BeachLocation[] = [...defaultBeachLocations];
+
 export const weatherService = {
-  // Get all beach locations
   getBeachLocations: async (): Promise<BeachLocation[]> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return mockBeachLocations;
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return beachLocations;
   },
 
-  // Get weather data for a specific location
   getBeachWeather: async (locationId: string): Promise<BeachWeatherData | null> => {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const location = mockBeachLocations.find(loc => loc.id === locationId);
+    const location = beachLocations.find(l => l.id === locationId);
     if (!location) return null;
+
+    const [air, marine] = await Promise.all([
+      fetchOpenMeteoAir(location.latitude, location.longitude).catch(() => null),
+      fetchOpenMeteoMarine(location.latitude, location.longitude).catch(() => null)
+    ]);
+
+    const currentWeather: WeatherData = air ? mapAirToWeatherData(air) : {
+      temperature: NaN,
+      feelsLike: NaN,
+      humidity: 0,
+      windSpeed: 0,
+      windDirection: 0,
+      description: 'N/A',
+      icon: 'clear'
+    };
+
+    const currentWater: WaterData = marine ? mapMarineToWaterData(marine) : {
+      temperature: NaN,
+      waveHeight: undefined,
+      waveDirection: undefined
+    };
+
+    const forecast: ForecastDay[] = air && marine ? mapDailyToForecast(air, marine) : [];
+
+    // Tide via Open-Meteo hourly tide height. Derive current and next extrema.
+    let tide: TideData = generateFallbackTide();
+    try {
+      const tideJson = await fetchOpenMeteoTide(location.latitude, location.longitude);
+      const times: string[] = tideJson.hourly?.time || [];
+      const heights: number[] = tideJson.hourly?.tide_height || [];
+      if (times.length && heights.length && times.length === heights.length) {
+        const nowIso = new Date().toISOString().slice(0, 13); // hour resolution
+        const idxNow = Math.max(0, times.findIndex((t: string) => t.startsWith(nowIso)));
+        const currentHeight = Number(heights[idxNow] ?? heights[0]);
+        const prev = Number(heights[Math.max(0, idxNow - 1)] ?? currentHeight);
+        const next = Number(heights[Math.min(heights.length - 1, idxNow + 1)] ?? currentHeight);
+        const rising = next > currentHeight;
+        const currentType = rising ? 'rising' : 'falling';
+
+        // Find next high and low after idxNow by simple local extrema search
+        let nextHigh: { time: string; height: number } | null = null;
+        let nextLow: { time: string; height: number } | null = null;
+        for (let i = idxNow + 1; i < heights.length - 1; i++) {
+          const h0 = heights[i - 1];
+          const h1 = heights[i];
+          const h2 = heights[i + 1];
+          if (h1 > h0 && h1 >= h2 && !nextHigh) {
+            nextHigh = { time: times[i], height: Number(h1) };
+          }
+          if (h1 < h0 && h1 <= h2 && !nextLow) {
+            nextLow = { time: times[i], height: Number(h1) };
+          }
+          if (nextHigh && nextLow) break;
+        }
+
+        tide = {
+          current: {
+            height: Number(currentHeight.toFixed(2)),
+            type: currentType as any,
+            time: times[idxNow]?.slice(11, 16) || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          },
+          upcoming: [
+            ...(nextHigh ? [{ time: nextHigh.time.slice(11, 16), height: Number(nextHigh.height.toFixed(2)), type: 'high' as const }] : []),
+            ...(nextLow ? [{ time: nextLow.time.slice(11, 16), height: Number(nextLow.height.toFixed(2)), type: 'low' as const }] : [])
+          ]
+        };
+      }
+    } catch {}
 
     return {
       location,
       current: {
-        weather: generateMockWeather(),
-        water: generateMockWater(),
-        tide: generateMockTide()
+        weather: currentWeather,
+        water: currentWater,
+        tide
       },
-      forecast: generateForecast()
+      forecast
     };
   },
 
-  // Add new beach location
   addBeachLocation: async (location: Omit<BeachLocation, 'id'>): Promise<BeachLocation> => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const newLocation: BeachLocation = {
-      ...location,
-      id: Date.now().toString()
-    };
-    
-    mockBeachLocations.push(newLocation);
+    // Auto webcam URL if not provided: link to Windy webcams near coordinates
+    const webcamUrl = location.webcamUrl || `https://www.windy.com/-Webcams/webcams?${location.latitude.toFixed(3)},${location.longitude.toFixed(3)},11`;
+    const newLocation: BeachLocation = { ...location, webcamUrl, id: Date.now().toString() };
+    beachLocations.push(newLocation);
     return newLocation;
   },
 
-  // Delete beach location
   deleteBeachLocation: async (locationId: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    const index = mockBeachLocations.findIndex(loc => loc.id === locationId);
-    if (index > -1) {
-      mockBeachLocations.splice(index, 1);
-    }
+    const idx = beachLocations.findIndex(b => b.id === locationId);
+    if (idx >= 0) beachLocations.splice(idx, 1);
   },
 
-  // Toggle favorite status
   toggleFavorite: async (locationId: string): Promise<void> => {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    const location = mockBeachLocations.find(loc => loc.id === locationId);
-    if (location) {
-      location.isFavorite = !location.isFavorite;
-    }
+    const loc = beachLocations.find(b => b.id === locationId);
+    if (loc) loc.isFavorite = !loc.isFavorite;
   }
-}; 
+};

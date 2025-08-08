@@ -84,7 +84,10 @@ function App() {
   const handleAddLocation = async (locationData: Omit<BeachLocation, 'id'>) => {
     try {
       const newLocation = await weatherService.addBeachLocation(locationData);
-      setLocations(prev => [...prev, newLocation]);
+      // Add new card to the TOP of the list and auto-select it
+      setLocations(prev => [newLocation, ...prev]);
+      const weatherData = await weatherService.getBeachWeather(newLocation.id);
+      setSelectedLocation(weatherData);
       setShowAddModal(false);
     } catch (error) {
       console.error('Failed to add location:', error);
