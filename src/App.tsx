@@ -84,8 +84,8 @@ function App() {
   const handleAddLocation = async (locationData: Omit<BeachLocation, 'id'>) => {
     try {
       const newLocation = await weatherService.addBeachLocation(locationData);
-      // Add new card to the TOP of the list and auto-select it
-      setLocations(prev => [newLocation, ...prev]);
+      // Add new card to the TOP of the list (dedup by id) and auto-select it
+      setLocations(prev => [newLocation, ...prev.filter(l => l.id !== newLocation.id)]);
       const weatherData = await weatherService.getBeachWeather(newLocation.id);
       setSelectedLocation(weatherData);
       setShowAddModal(false);

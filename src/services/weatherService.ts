@@ -22,23 +22,17 @@ const defaultBeachLocations: BeachLocation[] = [
   }
 ];
 
-// Fallback tide generator (until a tide provider is added)
-const generateFallbackTide = (): TideData => {
-  const tideTypes: ('high' | 'low' | 'rising' | 'falling')[] = ['high', 'low', 'rising', 'falling'];
-  const currentType = tideTypes[Math.floor(Math.random() * tideTypes.length)];
+// Helper for an 'unknown' tide structure (no fabricated numbers)
+function unknownTide(): TideData {
   return {
     current: {
-      height: Number((Math.random() * 2 + 0.3).toFixed(2)),
-      type: currentType,
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      height: NaN,
+      type: 'low',
+      time: ''
     },
-    upcoming: [
-      { time: '06:00', height: 0.4, type: 'low' },
-      { time: '12:30', height: 1.8, type: 'high' },
-      { time: '19:00', height: 0.5, type: 'low' }
-    ]
+    upcoming: []
   };
-};
+}
 
 async function fetchOpenMeteoAir(latitude: number, longitude: number) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
@@ -114,7 +108,7 @@ function mapDailyToForecast(air: any, marine: any): ForecastDay[] {
       date,
       weather,
       water,
-      tide: generateFallbackTide(),
+      tide: unknownTide(),
       highTemp: high,
       lowTemp: low
     });
@@ -168,7 +162,6 @@ export const weatherService = {
         const nowIso = new Date().toISOString().slice(0, 13); // hour resolution
         const idxNow = Math.max(0, times.findIndex((t: string) => t.startsWith(nowIso)));
         const currentHeight = Number(heights[idxNow] ?? heights[0]);
-        const prev = Number(heights[Math.max(0, idxNow - 1)] ?? currentHeight);
         const next = Number(heights[Math.min(heights.length - 1, idxNow + 1)] ?? currentHeight);
         const rising = next > currentHeight;
         const currentType = rising ? 'rising' : 'falling';
@@ -201,7 +194,9 @@ export const weatherService = {
           ]
         };
       }
-    } catch {}
+    } catch {
+      tide = unknownTide();
+    }
 
     return {
       location,
@@ -217,6 +212,16 @@ export const weatherService = {
   addBeachLocation: async (location: Omit<BeachLocation, 'id'>): Promise<BeachLocation> => {
     // Auto webcam URL if not provided: link to Windy webcams near coordinates
     const webcamUrl = location.webcamUrl || `https://www.windy.com/-Webcams/webcams?${location.latitude.toFixed(3)},${location.longitude.toFixed(3)},11`;
+    // Deduplicate by name or coordinates (within ~100m)
+    const existing = beachLocations.find(b => 
+      b.name.toLowerCase() === location.name.toLowerCase() ||
+      (Math.abs(b.latitude - location.latitude) < 0.001 && Math.abs(b.longitude - location.longitude) < 0.001)
+    );
+    if (existing) {
+      // Ensure webcam
+      if (!existing.webcamUrl) existing.webcamUrl = webcamUrl;
+      return existing;
+    }
     const newLocation: BeachLocation = { ...location, webcamUrl, id: Date.now().toString() };
     beachLocations.push(newLocation);
     return newLocation;

@@ -69,24 +69,34 @@ const iberiaBeaches: SearchResult[] = [
 
 export const searchService = {
   searchLocations: async (query: string): Promise<SearchResult[]> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const searchTerm = query.toLowerCase().trim();
-    
-    if (searchTerm.length < 2) {
-      return [];
-    }
-    
-    // Filter beaches based on search query
-    const results = iberiaBeaches.filter(beach => 
-      beach.name.toLowerCase().includes(searchTerm) ||
-      beach.displayName.toLowerCase().includes(searchTerm) ||
-      beach.state?.toLowerCase().includes(searchTerm) ||
-      beach.country.toLowerCase().includes(searchTerm)
+    const searchTerm = query.trim();
+    if (searchTerm.length < 2) return [];
+
+    // Primary: Open‑Meteo Geocoding API (free, OSM-based)
+    try {
+      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchTerm)}&count=10&language=en&format=json`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        const results: SearchResult[] = (data.results || []).map((r: any) => ({
+          name: r.name,
+          displayName: [r.name, r.admin1, r.country].filter(Boolean).join(', '),
+          latitude: r.latitude,
+          longitude: r.longitude,
+          country: r.country,
+          state: r.admin1 || undefined
+        }));
+        if (results.length) return results;
+      }
+    } catch {}
+
+    // Fallback: local Iberia list filter
+    const fallback = iberiaBeaches.filter(beach =>
+      beach.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      beach.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      beach.state?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      beach.country.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    
-    // Return top 10 results
-    return results.slice(0, 10);
+    return fallback.slice(0, 10);
   }
 };
